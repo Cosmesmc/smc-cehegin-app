@@ -733,6 +733,3 @@ jobs:
           body: Descarga SMC-Cehegin.apk e instálalo en el móvil Android.
           files: SMC-Cehegin.apk
           make_latest: true
-linea 1
-  linea 2 con sangría
-fin
