@@ -1,0 +1,738 @@
+name: Construir APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Crear el proyecto Android (App SMC 3.5.1)
+        run: |
+          mkdir -p "$(dirname 'settings.gradle')"
+          cat > 'settings.gradle' <<'FIN_DEL_ARCHIVO'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'SMC Cehegin'
+          include ':app'
+          FIN_DEL_ARCHIVO
+          mkdir -p "$(dirname 'build.gradle')"
+          cat > 'build.gradle' <<'FIN_DEL_ARCHIVO'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          FIN_DEL_ARCHIVO
+          mkdir -p "$(dirname 'gradle.properties')"
+          cat > 'gradle.properties' <<'FIN_DEL_ARCHIVO'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.nonTransitiveRClass=true
+          FIN_DEL_ARCHIVO
+          mkdir -p "$(dirname 'app/build.gradle')"
+          cat > 'app/build.gradle' <<'FIN_DEL_ARCHIVO'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'es.smcehegin.app'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId 'es.smcehegin.app'
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 350
+                  versionName '3.5.0'
+              }
+
+              signingConfigs {
+                  release {
+                      storeFile file('smc-cehegin.jks')
+                      storePassword 'smcCehegin1992'
+                      keyAlias 'smc'
+                      keyPassword 'smcCehegin1992'
+                  }
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      signingConfig signingConfigs.release
+                  }
+                  debug {
+                      signingConfig signingConfigs.release
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          FIN_DEL_ARCHIVO
+          mkdir -p "$(dirname 'app/src/main/AndroidManifest.xml')"
+          cat > 'app/src/main/AndroidManifest.xml' <<'FIN_DEL_ARCHIVO'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+              <queries>
+                  <intent>
+                      <action android:name="android.intent.action.VIEW" />
+                      <data android:scheme="https" />
+                  </intent>
+                  <intent>
+                      <action android:name="android.intent.action.VIEW" />
+                      <data android:scheme="webcal" />
+                  </intent>
+                  <intent>
+                      <action android:name="android.intent.action.DIAL" />
+                  </intent>
+                  <intent>
+                      <action android:name="android.intent.action.GET_CONTENT" />
+                      <data android:mimeType="*/*" />
+                  </intent>
+              </queries>
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher"
+                  android:label="@string/app_name"
+                  android:theme="@style/Tema"
+                  android:usesCleartextTraffic="false">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+                      android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          FIN_DEL_ARCHIVO
+          mkdir -p "$(dirname 'app/src/main/res/values/strings.xml')"
+          cat > 'app/src/main/res/values/strings.xml' <<'FIN_DEL_ARCHIVO'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">SMC Cehegín</string>
+              <!-- Opcional: pega aquí la dirección de la app (la que termina en /exec) y no se preguntará al abrirla. -->
+              <string name="url_app" translatable="false">https://script.google.com/macros/s/AKfycbxcV5oP1aR-JpZwgljmdFa0kvgkQv6nCynV-gQZB9G3n46o97PDWISj8IeC2ob-2eXU/exec</string>
+          </resources>
+          FIN_DEL_ARCHIVO
+          mkdir -p "$(dirname 'app/src/main/res/values/themes.xml')"
+          cat > 'app/src/main/res/values/themes.xml' <<'FIN_DEL_ARCHIVO'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="Tema" parent="android:Theme.Material.Light.NoActionBar">
+                  <item name="android:colorPrimary">#13213f</item>
+                  <item name="android:colorPrimaryDark">#13213f</item>
+                  <item name="android:colorAccent">#86672f</item>
+                  <item name="android:statusBarColor">#13213f</item>
+                  <item name="android:navigationBarColor">#13213f</item>
+                  <item name="android:windowBackground">#13213f</item>
+              </style>
+          </resources>
+          FIN_DEL_ARCHIVO
+          mkdir -p "$(dirname 'app/src/main/java/es/smcehegin/app/MainActivity.java')"
+          cat > 'app/src/main/java/es/smcehegin/app/MainActivity.java' <<'FIN_DEL_ARCHIVO'
+          package es.smcehegin.app;
+
+          import android.app.Activity;
+          import android.content.ActivityNotFoundException;
+          import android.content.ClipData;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.graphics.Bitmap;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.net.ConnectivityManager;
+          import android.net.NetworkInfo;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.text.InputType;
+          import android.util.TypedValue;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.view.WindowManager;
+          import android.view.inputmethod.EditorInfo;
+          import android.webkit.CookieManager;
+          import android.webkit.ValueCallback;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceError;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.widget.Button;
+          import android.widget.EditText;
+          import android.widget.FrameLayout;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.ProgressBar;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          /**
+           * App SMC · Sociedad Musical de Cehegín.
+           * Contenedor nativo de la aplicación web (Google Apps Script): abre la app a pantalla completa,
+           * permite subir fotos y PDF, abre WhatsApp, teléfono, mapas, calendario y descargas fuera.
+           */
+          public class MainActivity extends Activity {
+
+              private static final String PREFS = "smc";
+              private static final String CLAVE_URL = "url";
+              private static final int PEDIR_ARCHIVO = 41;
+              private static final int AZUL = Color.parseColor("#13213f");
+              private static final int ORO = Color.parseColor("#d4b46a");
+              private static final int DORADO = Color.parseColor("#86672f");
+
+              private FrameLayout raiz;
+              private WebView web;
+              private ProgressBar barra;
+              private View pantallaCompleta;
+              private WebChromeClient.CustomViewCallback salirPantallaCompleta;
+              private ValueCallback<Uri[]> archivosPendientes;
+              private boolean mostrandoError = false;
+              private final Navegador navegador = new Navegador();
+
+              @Override
+              protected void onCreate(Bundle estado) {
+                  super.onCreate(estado);
+                  raiz = new FrameLayout(this);
+                  raiz.setBackgroundColor(AZUL);
+                  setContentView(raiz);
+
+                  String url = urlGuardada();
+                  if (url.isEmpty()) mostrarConfiguracion(null);
+                  else abrirApp(url, estado);
+              }
+
+              // ------------------------------------------------------------------ dirección de la app
+              private SharedPreferences prefs() { return getSharedPreferences(PREFS, Context.MODE_PRIVATE); }
+
+              private String urlGuardada() {
+                  String u = prefs().getString(CLAVE_URL, "");
+                  if (u == null || u.isEmpty()) u = getString(R.string.url_app).trim();
+                  return u == null ? "" : u;
+              }
+
+              private static String limpiarUrl(String u) {
+                  u = u == null ? "" : u.trim();
+                  int p = u.indexOf("http");
+                  if (p > 0) u = u.substring(p);
+                  int esp = u.indexOf(' ');
+                  if (esp > 0) u = u.substring(0, esp);
+                  if (u.startsWith("http://")) u = "https://" + u.substring(7);
+                  // Quitar parámetros de la parte pública u otros
+                  int q = u.indexOf('?');
+                  if (q > 0) u = u.substring(0, q);
+                  return u;
+              }
+
+              private static boolean urlValida(String u) {
+                  return u.startsWith("https://script.google.com/") && (u.endsWith("/exec") || u.endsWith("/dev"));
+              }
+
+              private int dp(float v) {
+                  return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics());
+              }
+
+              private void mostrarConfiguracion(String error) {
+                  if (web != null) { raiz.removeView(web); web.destroy(); web = null; }
+                  raiz.removeAllViews();
+
+                  LinearLayout caja = new LinearLayout(this);
+                  caja.setOrientation(LinearLayout.VERTICAL);
+                  caja.setGravity(Gravity.CENTER_HORIZONTAL);
+                  caja.setPadding(dp(28), dp(56), dp(28), dp(28));
+
+                  ImageView escudo = new ImageView(this);
+                  escudo.setImageResource(R.mipmap.ic_launcher);
+                  LinearLayout.LayoutParams lpEsc = new LinearLayout.LayoutParams(dp(104), dp(104));
+                  lpEsc.bottomMargin = dp(18);
+                  caja.addView(escudo, lpEsc);
+
+                  TextView titulo = new TextView(this);
+                  titulo.setText("Sociedad Musical\nde Cehegín");
+                  titulo.setTextColor(Color.WHITE);
+                  titulo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
+                  titulo.setTypeface(Typeface.SERIF, Typeface.BOLD);
+                  titulo.setGravity(Gravity.CENTER);
+                  caja.addView(titulo);
+
+                  TextView ayuda = new TextView(this);
+                  ayuda.setText("Pega la dirección de la app que te ha enviado la junta directiva. Empieza por https://script.google.com y termina en /exec. Solo se pide la primera vez.");
+                  ayuda.setTextColor(Color.argb(220, 255, 255, 255));
+                  ayuda.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+                  ayuda.setGravity(Gravity.CENTER);
+                  ayuda.setPadding(0, dp(18), 0, dp(14));
+                  caja.addView(ayuda);
+
+                  if (error != null) {
+                      TextView err = new TextView(this);
+                      err.setText(error);
+                      err.setTextColor(Color.parseColor("#c0392b"));
+                      err.setBackgroundColor(Color.WHITE);
+                      err.setPadding(dp(12), dp(10), dp(12), dp(10));
+                      err.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+                      LinearLayout.LayoutParams lpErr = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                      lpErr.bottomMargin = dp(10);
+                      caja.addView(err, lpErr);
+                  }
+
+                  final EditText campo = new EditText(this);
+                  campo.setHint("https://script.google.com/macros/s/…/exec");
+                  campo.setText(prefs().getString(CLAVE_URL, ""));
+                  campo.setSingleLine(true);
+                  campo.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+                  campo.setImeOptions(EditorInfo.IME_ACTION_GO);
+                  campo.setTextColor(Color.parseColor("#1b1f2a"));
+                  campo.setHintTextColor(Color.GRAY);
+                  campo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+                  campo.setPadding(dp(14), dp(12), dp(14), dp(12));
+                  GradientDrawable fondoCampo = new GradientDrawable();
+                  fondoCampo.setColor(Color.WHITE);
+                  fondoCampo.setCornerRadius(dp(10));
+                  campo.setBackground(fondoCampo);
+                  caja.addView(campo, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  Button entrar = new Button(this);
+                  entrar.setText("Entrar");
+                  entrar.setAllCaps(false);
+                  entrar.setTextColor(Color.parseColor("#1b1f2a"));
+                  entrar.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+                  entrar.setTypeface(Typeface.DEFAULT_BOLD);
+                  GradientDrawable fondoBoton = new GradientDrawable();
+                  fondoBoton.setColor(ORO);
+                  fondoBoton.setCornerRadius(dp(12));
+                  entrar.setBackground(fondoBoton);
+                  LinearLayout.LayoutParams lpBtn = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+                  lpBtn.topMargin = dp(14);
+                  caja.addView(entrar, lpBtn);
+
+                  final Runnable guardar = new Runnable() {
+                      @Override public void run() {
+                          String u = limpiarUrl(campo.getText().toString());
+                          if (!urlValida(u)) {
+                              mostrarConfiguracion("Esa dirección no parece la de la app. Debe empezar por https://script.google.com/macros/s/ y terminar en /exec.");
+                              return;
+                          }
+                          prefs().edit().putString(CLAVE_URL, u).apply();
+                          abrirApp(u, null);
+                      }
+                  };
+                  entrar.setOnClickListener(new View.OnClickListener() {
+                      @Override public void onClick(View v) { guardar.run(); }
+                  });
+                  campo.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+                      @Override public boolean onEditorAction(TextView v, int accion, android.view.KeyEvent e) { guardar.run(); return true; }
+                  });
+
+                  android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+                  scroll.setFillViewport(true);
+                  scroll.addView(caja);
+                  raiz.addView(scroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+              }
+
+              // ------------------------------------------------------------------ la app web
+              private void abrirApp(String url, Bundle estado) {
+                  raiz.removeAllViews();
+                  mostrandoError = false;
+
+                  web = new WebView(this);
+                  web.setBackgroundColor(AZUL);
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setDatabaseEnabled(true);
+                  s.setMediaPlaybackRequiresUserGesture(false);
+                  s.setLoadWithOverviewMode(true);
+                  s.setUseWideViewPort(true);
+                  s.setSupportZoom(false);
+                  s.setBuiltInZoomControls(false);
+                  s.setAllowFileAccess(false);
+                  s.setAllowContentAccess(true);
+                  s.setJavaScriptCanOpenWindowsAutomatically(false);
+                  s.setSupportMultipleWindows(false);
+                  s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+
+                  CookieManager cookies = CookieManager.getInstance();
+                  cookies.setAcceptCookie(true);
+                  cookies.setAcceptThirdPartyCookies(web, true);
+
+                  web.setWebViewClient(new Cliente());
+                  web.setWebChromeClient(navegador);
+                  web.setDownloadListener((enlace, agente, disposicion, tipo, tamano) -> abrirFuera(enlace));
+
+                  raiz.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  barra = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+                  barra.setIndeterminate(false);
+                  barra.setMax(100);
+                  barra.setProgressTintList(android.content.res.ColorStateList.valueOf(ORO));
+                  raiz.addView(barra, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3), Gravity.TOP));
+
+                  if (estado != null && web.restoreState(estado) != null) return;
+                  if (!hayConexion()) { mostrarSinConexion(); return; }
+                  web.loadUrl(url);
+              }
+
+              private boolean hayConexion() {
+                  try {
+                      ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                      NetworkInfo n = cm == null ? null : cm.getActiveNetworkInfo();
+                      return n == null || n.isConnected();
+                  } catch (Exception e) { return true; }
+              }
+
+              /** Dentro de la app: Google Apps Script y sus marcos. Fuera: WhatsApp, mapas, calendario, Drive… */
+              private static boolean esInterna(Uri u) {
+                  String h = u.getHost() == null ? "" : u.getHost().toLowerCase();
+                  return h.equals("script.google.com") || h.endsWith(".googleusercontent.com") || h.equals("accounts.google.com")
+                      || h.endsWith("youtube-nocookie.com") || h.equals("www.youtube.com") && u.getPath() != null && u.getPath().startsWith("/embed");
+              }
+
+              private void abrirFuera(String enlace) {
+                  try {
+                      Uri u = Uri.parse(enlace);
+                      Intent i;
+                      if ("intent".equals(u.getScheme())) {
+                          i = Intent.parseUri(enlace, Intent.URI_INTENT_SCHEME);
+                          i.addCategory(Intent.CATEGORY_BROWSABLE);
+                          i.setComponent(null);
+                          i.setSelector(null);
+                      } else if ("tel".equals(u.getScheme())) {
+                          i = new Intent(Intent.ACTION_DIAL, u);
+                      } else {
+                          i = new Intent(Intent.ACTION_VIEW, u);
+                      }
+                      i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      startActivity(i);
+                  } catch (ActivityNotFoundException e) {
+                      if (enlace.startsWith("webcal:")) {
+                          // Sin app de calendario que acepte webcal: abrir la suscripción en Google Calendar
+                          abrirFuera("https://calendar.google.com/calendar/r?cid=" + Uri.encode(enlace));
+                      } else {
+                          Toast.makeText(this, "No hay ninguna app para abrir este enlace", Toast.LENGTH_LONG).show();
+                      }
+                  } catch (Exception e) {
+                      Toast.makeText(this, "No se ha podido abrir el enlace", Toast.LENGTH_LONG).show();
+                  }
+              }
+
+              private class Cliente extends WebViewClient {
+                  @Override
+                  public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest req) {
+                      Uri u = req.getUrl();
+                      if (!req.isForMainFrame()) return false; // marcos internos (vídeos, vistas de Drive): siempre dentro
+                      String esquema = u.getScheme() == null ? "" : u.getScheme();
+                      if ("smc".equals(esquema)) {
+                          if ("reintentar".equals(u.getHost())) { mostrandoError = false; v.loadUrl(urlGuardada()); }
+                          else if ("cambiar".equals(u.getHost())) mostrarConfiguracion(null);
+                          return true;
+                      }
+                      if (("https".equals(esquema) || "http".equals(esquema)) && esInterna(u)) return false;
+                      abrirFuera(u.toString());
+                      return true;
+                  }
+
+                  @Override
+                  public void onPageStarted(WebView v, String url, Bitmap icono) { if (barra != null) barra.setVisibility(View.VISIBLE); }
+
+                  @Override
+                  public void onPageFinished(WebView v, String url) {
+                      if (barra != null) barra.setVisibility(View.GONE);
+                      CookieManager.getInstance().flush();
+                  }
+
+                  @Override
+                  public void onReceivedError(WebView v, WebResourceRequest req, WebResourceError error) {
+                      if (req.isForMainFrame() && !mostrandoError) mostrarSinConexion();
+                  }
+              }
+
+              private void mostrarSinConexion() {
+                  mostrandoError = true;
+                  String html = "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
+                      + "<style>body{margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;"
+                      + "background:#13213f;color:#fff;font-family:sans-serif;text-align:center;padding:24px;box-sizing:border-box}"
+                      + "h1{font-size:22px;margin:0 0 10px}p{opacity:.85;line-height:1.5;margin:0 0 24px}"
+                      + "a{display:block;width:100%;max-width:320px;box-sizing:border-box;padding:14px;border-radius:12px;text-decoration:none;font-weight:bold;margin-top:10px}"
+                      + ".a{background:#d4b46a;color:#1b1f2a}.b{border:1px solid rgba(255,255,255,.4);color:#fff}</style></head><body>"
+                      + "<div style='font-size:54px'>📶</div><h1>Sin conexión</h1><p>No se puede abrir la app. Comprueba que tienes internet (datos o wifi) e inténtalo de nuevo.</p>"
+                      + "<a class='a' href='smc://reintentar'>Reintentar</a><a class='b' href='smc://cambiar'>Cambiar la dirección de la app</a></body></html>";
+                  web.loadDataWithBaseURL("https://smc.local/", html, "text/html", "utf-8", null);
+              }
+
+              private class Navegador extends WebChromeClient {
+                  @Override
+                  public void onProgressChanged(WebView v, int progreso) {
+                      if (barra == null) return;
+                      barra.setProgress(progreso);
+                      barra.setVisibility(progreso >= 100 ? View.GONE : View.VISIBLE);
+                  }
+
+                  @Override
+                  public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                      if (archivosPendientes != null) archivosPendientes.onReceiveValue(null);
+                      archivosPendientes = callback;
+                      Intent elegir = new Intent(Intent.ACTION_GET_CONTENT);
+                      elegir.addCategory(Intent.CATEGORY_OPENABLE);
+                      String[] tipos = params.getAcceptTypes();
+                      String tipo = "*/*";
+                      if (tipos != null && tipos.length > 0 && tipos[0] != null && !tipos[0].trim().isEmpty()) {
+                          tipo = tipos.length == 1 ? tipos[0].trim() : "*/*";
+                          if (tipos.length > 1) elegir.putExtra(Intent.EXTRA_MIME_TYPES, limpiarTipos(tipos));
+                      }
+                      if (tipo.startsWith(".")) tipo = tipo.equalsIgnoreCase(".pdf") ? "application/pdf" : "*/*";
+                      elegir.setType(tipo);
+                      if (params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) elegir.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                      try {
+                          startActivityForResult(Intent.createChooser(elegir, "Elegir archivo"), PEDIR_ARCHIVO);
+                      } catch (ActivityNotFoundException e) {
+                          archivosPendientes = null;
+                          Toast.makeText(MainActivity.this, "No hay ninguna app para elegir archivos", Toast.LENGTH_LONG).show();
+                          return false;
+                      }
+                      return true;
+                  }
+
+                  @Override
+                  public void onShowCustomView(View vista, CustomViewCallback callback) {
+                      if (pantallaCompleta != null) { callback.onCustomViewHidden(); return; }
+                      pantallaCompleta = vista;
+                      salirPantallaCompleta = callback;
+                      raiz.addView(vista, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                      getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                  }
+
+                  @Override
+                  public void onHideCustomView() {
+                      if (pantallaCompleta == null) return;
+                      raiz.removeView(pantallaCompleta);
+                      pantallaCompleta = null;
+                      getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                      if (salirPantallaCompleta != null) salirPantallaCompleta.onCustomViewHidden();
+                      salirPantallaCompleta = null;
+                  }
+              }
+
+              private static String[] limpiarTipos(String[] tipos) {
+                  java.util.ArrayList<String> l = new java.util.ArrayList<>();
+                  for (String t : tipos) {
+                      if (t == null) continue;
+                      for (String x : t.split(",")) {
+                          x = x.trim();
+                          if (x.isEmpty()) continue;
+                          if (x.equalsIgnoreCase(".pdf")) x = "application/pdf";
+                          if (x.startsWith(".")) continue;
+                          l.add(x);
+                      }
+                  }
+                  return l.toArray(new String[0]);
+              }
+
+              @Override
+              protected void onActivityResult(int codigo, int resultado, Intent datos) {
+                  if (codigo != PEDIR_ARCHIVO) { super.onActivityResult(codigo, resultado, datos); return; }
+                  if (archivosPendientes == null) return;
+                  Uri[] res = null;
+                  if (resultado == RESULT_OK && datos != null) {
+                      ClipData clip = datos.getClipData();
+                      if (clip != null && clip.getItemCount() > 0) {
+                          res = new Uri[clip.getItemCount()];
+                          for (int i = 0; i < clip.getItemCount(); i++) res[i] = clip.getItemAt(i).getUri();
+                      } else if (datos.getData() != null) {
+                          res = new Uri[]{ datos.getData() };
+                      }
+                  }
+                  archivosPendientes.onReceiveValue(res);
+                  archivosPendientes = null;
+              }
+
+              // ------------------------------------------------------------------ ciclo de vida
+              @Override
+              public void onBackPressed() {
+                  if (pantallaCompleta != null) { navegador.onHideCustomView(); return; }
+                  if (web != null && web.canGoBack() && !mostrandoError) { web.goBack(); return; }
+                  super.onBackPressed();
+              }
+
+              @Override
+              protected void onSaveInstanceState(Bundle estado) {
+                  super.onSaveInstanceState(estado);
+                  if (web != null && !mostrandoError) web.saveState(estado);
+              }
+
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  if (web != null) web.onPause();
+                  CookieManager.getInstance().flush();
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  if (web != null) web.onResume();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (web != null) { web.destroy(); web = null; }
+                  super.onDestroy();
+              }
+          }
+          FIN_DEL_ARCHIVO
+          mkdir -p "$(dirname 'app/icono.b64')"
+          cat > 'app/icono.b64' <<'FIN_DEL_ARCHIVO'
+          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
+          RU5ErkJggg==
+          FIN_DEL_ARCHIVO
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do mkdir -p app/src/main/res/mipmap-$d; done
+          base64 -d app/icono.b64 > app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+      - name: Firma
+        env:
+          FIRMA_B64: ${{ secrets.FIRMA_B64 }}
+        run: echo "$FIRMA_B64" | base64 -d > app/smc-cehegin.jks
+      - name: Compilar
+        run: |
+          gradle assembleRelease --no-daemon --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk SMC-Cehegin.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SMC-Cehegin-APK
+          path: SMC-Cehegin.apk
+      - name: Publicar para descargar
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app
+          name: App SMC (Android)
+          body: Descarga SMC-Cehegin.apk e instálalo en el móvil Android.
+          files: SMC-Cehegin.apk
+          make_latest: true
+linea 1
+  linea 2 con sangría
+fin
