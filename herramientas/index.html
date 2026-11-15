@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#13213f">
+<title>Herramientas · SMC Cehegín</title>
+<style>
+  :root{--azul:#13213f;--oro:#d4b46a;--rojo:#86672f;--fondo:#f4f5f8;--texto:#1b1f2a;--suave:#6b7280;--linea:#e5e7eb;--ok:#1f8a4c;--no:#c0392b}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--fondo);color:var(--texto);min-height:100vh;overflow-wrap:break-word}
+  header{background:var(--azul);color:#fff;padding:calc(env(safe-area-inset-top) + 14px) 16px 0}
+  header h1{font-family:Georgia,"Times New Roman",serif;font-size:19px;margin-bottom:12px}
+  .tabs{display:flex;gap:6px}
+  .tabs button{flex:1;border:none;background:rgba(255,255,255,.12);color:#fff;font:600 15px inherit;font-family:inherit;padding:12px 6px;border-radius:12px 12px 0 0;cursor:pointer}
+  .tabs button.on{background:var(--fondo);color:var(--azul)}
+  main{max-width:520px;margin:0 auto;padding:16px 16px calc(30px + env(safe-area-inset-bottom))}
+  .card{background:#fff;border-radius:18px;padding:18px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:14px}
+  .btn{display:block;width:100%;border:none;border-radius:14px;padding:15px;font:600 16px inherit;font-family:inherit;background:var(--azul);color:#fff;cursor:pointer}
+  .btn.sec{background:#eef1f7;color:var(--azul)}
+  .btn.rojo{background:var(--no)}
+  .btn:disabled{opacity:.5}
+  label{display:block;font-size:13px;font-weight:600;color:var(--suave);margin:0 0 6px}
+  select{width:100%;border:1px solid var(--linea);border-radius:12px;padding:11px;font:16px inherit;font-family:inherit;background:#fff;color:var(--texto)}
+  .dos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .meta{color:var(--suave);font-size:13px;line-height:1.45}
+  .aviso{background:#fff7e6;color:#7a5200;border-radius:12px;padding:12px;font-size:14px;line-height:1.45;margin-top:12px}
+  .oculto{display:none!important}
+  /* Afinador */
+  .nota{text-align:center;font-size:78px;font-weight:700;line-height:1;margin:6px 0 2px;color:var(--azul)}
+  .nota small{font-size:28px;color:var(--suave);font-weight:600;margin-left:2px}
+  .hz{text-align:center;color:var(--suave);font-size:14px;min-height:20px}
+  .escala{position:relative;height:70px;margin:18px 4px 6px}
+  .escala .marcas{position:absolute;left:0;right:0;top:26px;height:18px;background:linear-gradient(90deg,rgba(192,57,43,.18),rgba(31,138,76,.25) 45%,rgba(31,138,76,.35) 50%,rgba(31,138,76,.25) 55%,rgba(192,57,43,.18));border-radius:9px}
+  .escala .centro{position:absolute;left:50%;top:14px;width:2px;height:42px;background:var(--ok);transform:translateX(-1px)}
+  .escala .aguja{position:absolute;left:50%;top:6px;width:4px;height:58px;background:var(--azul);border-radius:2px;transform:translateX(-2px);transition:left .12s linear}
+  .escala .et{position:absolute;top:50px;font-size:11px;color:var(--suave)}
+  .estado{text-align:center;font-weight:700;font-size:17px;min-height:24px}
+  /* Grabadora */
+  .reloj{text-align:center;font-size:52px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--azul);margin:4px 0}
+  .nivel{height:10px;background:var(--linea);border-radius:5px;overflow:hidden;margin:6px 0 16px}
+  .nivel i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ok),var(--oro),var(--no));transition:width .08s}
+  .grab{border-top:1px solid var(--linea);padding:14px 0}
+  .grab:first-child{border-top:none}
+  .grab b{display:block;font-size:15px}
+  .grab audio{width:100%;margin:8px 0}
+  .grab .acc{display:flex;gap:8px}
+  .grab .acc button{flex:1;border:none;border-radius:10px;padding:10px 6px;font:600 14px inherit;font-family:inherit;background:#eef1f7;color:var(--azul);cursor:pointer}
+  .grab .acc button.borrar{flex:none;background:#fde8e6;color:var(--no);padding:10px 14px}
+  .punto{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--no);margin-right:8px;animation:lat 1s infinite}
+  @keyframes lat{50%{opacity:.25}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎺 Herramientas · Sociedad Musical de Cehegín</h1>
+  <div class="tabs"><button id="tAfi" onclick="ver('afinador')">🎯 Afinador</button><button id="tGra" onclick="ver('grabadora')">🎙️ Grabadora</button></div>
+</header>
+<main>
+  <!-- ================= AFINADOR ================= -->
+  <section id="afinador">
+    <div class="card">
+      <div class="nota" id="aNota">–</div>
+      <div class="hz" id="aHz">Pulsa «Empezar» y toca una nota larga</div>
+      <div class="escala">
+        <div class="marcas"></div><div class="centro"></div><div class="aguja" id="aAguja"></div>
+        <span class="et" style="left:0">−50</span><span class="et" style="left:50%;transform:translateX(-50%)">0</span><span class="et" style="right:0">+50</span>
+      </div>
+      <div class="estado" id="aEstado"></div>
+      <div style="height:14px"></div>
+      <button class="btn" id="aBtn" onclick="afinador()">▶ Empezar a afinar</button>
+    </div>
+    <div class="card">
+      <div class="dos">
+        <div><label for="aInst">Mi instrumento está en</label>
+          <select id="aInst" onchange="guarda('inst',this.value)">
+            <option value="0">Do (flauta, oboe, fagot, trombón, bombardino en clave de Fa, tuba, percusión)</option>
+            <option value="2">Si♭ (clarinete, trompeta, saxo tenor, fliscorno, bombardino en clave de Sol)</option>
+            <option value="9">Mi♭ (saxo alto, saxo barítono, requinto)</option>
+            <option value="7">Fa (trompa)</option>
+          </select></div>
+        <div><label for="aLa">La de referencia</label>
+          <select id="aLa" onchange="guarda('la',this.value)"><option value="440">La = 440 Hz</option><option value="442">La = 442 Hz</option><option value="443">La = 443 Hz</option></select></div>
+      </div>
+      <p class="meta" style="margin-top:10px">La nota aparece tal y como la lees en tu partitura. Afina con el instrumento cerca del móvil y en un sitio sin ruido.</p>
+    </div>
+  </section>
+
+  <!-- ================= GRABADORA ================= -->
+  <section id="grabadora" class="oculto">
+    <div class="card">
+      <div class="reloj" id="gReloj">00:00</div>
+      <div class="nivel"><i id="gNivel"></i></div>
+      <button class="btn rojo" id="gBtn" onclick="grabar()">● Grabar</button>
+      <p class="meta" style="margin-top:10px;text-align:center" id="gInfo">Graba un ensayo, tu estudio o un pasaje para escucharte después.</p>
+    </div>
+    <div class="card">
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--suave);margin-bottom:4px">Mis grabaciones</h3>
+      <p class="meta" style="margin-bottom:6px">Se guardan solo en este móvil. Usa «Compartir» para mandarlas por WhatsApp o subirlas a la app.</p>
+      <div id="gLista"><p class="meta">Todavía no hay grabaciones.</p></div>
+    </div>
+  </section>
+
+  <div class="aviso oculto" id="sinMic"></div>
+</main>
+
+<script>
+// ---------- Utilidades ----------
+const $=s=>document.querySelector(s);
+const LS={get(k,d){try{const v=localStorage.getItem('smcH_'+k);return v===null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem('smcH_'+k,v)}catch(e){}}};
+function guarda(k,v){LS.set(k,v)}
+let AC=null;function ctx(){if(!AC){const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;AC=new C()}if(AC.state==='suspended')AC.resume();return AC}
+let wake=null;async function despierto(on){try{if(on&&navigator.wakeLock)wake=await navigator.wakeLock.request('screen');else if(wake){wake.release();wake=null}}catch(e){}}
+function errorMic(e){
+  const el=$('#sinMic');el.classList.remove('oculto');
+  el.innerHTML=(e&&e.name==='NotAllowedError')
+    ?'🎙️ No hay permiso para usar el micrófono. Pulsa el candado o «Aa» junto a la dirección de la página, permite el micrófono y vuelve a intentarlo.'
+    :'🎙️ No se ha podido usar el micrófono en este navegador. Abre esta página en Chrome (Android) o Safari (iPhone).';
+}
+async function pedirMic(musica){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw {name:'NoSoportado'};
+  return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:!musica?true:false}});
+}
+function ver(s){
+  ['afinador','grabadora'].forEach(x=>$('#'+x).classList.toggle('oculto',x!==s));
+  $('#tAfi').classList.toggle('on',s==='afinador');$('#tGra').classList.toggle('on',s==='grabadora');
+  if(location.hash!=='#'+s)history.replaceState(null,'','#'+s);
+  if(s!=='afinador'&&AF.on)afinador();
+}
+
+// ---------- Afinador ----------
+const NOTAS=['Do','Do♯','Re','Mi♭','Mi','Fa','Fa♯','Sol','La♭','La','Si♭','Si'];
+const AF={on:false,stream:null,an:null,buf:null,raf:0,suave:[]};
+$('#aInst').value=LS.get('inst','0');$('#aLa').value=LS.get('la','442');
+async function afinador(){
+  if(AF.on){AF.on=false;cancelAnimationFrame(AF.raf);if(AF.stream)AF.stream.getTracks().forEach(t=>t.stop());AF.stream=null;despierto(false);
+    $('#aBtn').textContent='▶ Empezar a afinar';$('#aNota').innerHTML='–';$('#aHz').textContent='Pulsa «Empezar» y toca una nota larga';$('#aEstado').textContent='';$('#aAguja').style.left='50%';return}
+  const c=ctx();if(!c)return errorMic();
+  try{AF.stream=await pedirMic(true)}catch(e){return errorMic(e)}
+  $('#sinMic').classList.add('oculto');
+  const src=c.createMediaStreamSource(AF.stream);AF.an=c.createAnalyser();AF.an.fftSize=4096;src.connect(AF.an);
+  AF.buf=new Float32Array(AF.an.fftSize);AF.on=true;AF.suave=[];despierto(true);
+  $('#aBtn').textContent='⏸ Parar';$('#aHz').textContent='Escuchando…';bucle();
+}
+// Autocorrelación (detecta la frecuencia fundamental)
+function tono(buf,sr){
+  let n=buf.length,rms=0;for(let i=0;i<n;i++)rms+=buf[i]*buf[i];rms=Math.sqrt(rms/n);if(rms<0.012)return -1;
+  let a=0,b=n-1;const th=0.2;for(let i=0;i<n/2;i++)if(Math.abs(buf[i])<th){a=i;break}for(let i=1;i<n/2;i++)if(Math.abs(buf[n-i])<th){b=n-i;break}
+  const x=buf.slice(a,b);n=x.length;if(n<64)return -1;
+  const c=new Float32Array(n);for(let i=0;i<n;i++){let s=0;for(let j=0;j<n-i;j++)s+=x[j]*x[j+i];c[i]=s}
+  let d=0;while(d<n-1&&c[d]>c[d+1])d++;
+  let mx=-1,p=-1;for(let i=d;i<n;i++)if(c[i]>mx){mx=c[i];p=i}
+  if(p<=0||p>=n-1)return -1;
+  const y1=c[p-1],y2=c[p],y3=c[p+1],A=(y1+y3-2*y2)/2,B=(y3-y1)/2;const t=A?p-B/(2*A):p;
+  const f=sr/t;return f>25&&f<4200?f:-1;
+}
+function bucle(){
+  if(!AF.on)return;
+  AF.an.getFloatTimeDomainData(AF.buf);
+  const f=tono(AF.buf,AC.sampleRate);
+  if(f>0){
+    AF.suave.push(f);if(AF.suave.length>5)AF.suave.shift();
+    const fs=[...AF.suave].sort((a,b)=>a-b)[Math.floor(AF.suave.length/2)];
+    const la=+$('#aLa').value,tr=+$('#aInst').value;
+    const midi=12*Math.log2(fs/la)+69,cerca=Math.round(midi),cents=Math.round((midi-cerca)*100);
+    const esc=((cerca+tr)%12+12)%12,oct=Math.floor((cerca+tr)/12)-1;
+    $('#aNota').innerHTML=NOTAS[esc]+'<small>'+oct+'</small>';
+    $('#aHz').textContent=fs.toFixed(1)+' Hz · '+(cents>0?'+':'')+cents+' cents';
+    $('#aAguja').style.left=(50+Math.max(-50,Math.min(50,cents)))+'%';
+    const e=$('#aEstado');
+    if(Math.abs(cents)<=5){e.textContent='✅ Afinado';e.style.color='var(--ok)'}
+    else if(cents<0){e.textContent='⬇️ Bajo · sube un poco';e.style.color='var(--no)'}
+    else{e.textContent='⬆️ Alto · baja un poco';e.style.color='var(--no)'}
+  }
+  AF.raf=requestAnimationFrame(bucle);
+}
+
+// ---------- Grabadora ----------
+const GR={rec:null,stream:null,partes:[],ini:0,timer:0,an:null,buf:null,raf:0,tipo:''};
+function tipoAudio(){if(!window.MediaRecorder)return null;for(const t of ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'])if(MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t))return t;return ''}
+const mmss=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(Math.floor(s%60)).padStart(2,'0');
+async function grabar(){
+  if(GR.rec&&GR.rec.state==='recording'){GR.rec.stop();return}
+  const t=tipoAudio();if(t===null)return errorMic();
+  try{GR.stream=await pedirMic(true)}catch(e){return errorMic(e)}
+  $('#sinMic').classList.add('oculto');
+  GR.tipo=t;GR.partes=[];
+  try{GR.rec=t?new MediaRecorder(GR.stream,{mimeType:t,audioBitsPerSecond:128000}):new MediaRecorder(GR.stream)}catch(e){GR.rec=new MediaRecorder(GR.stream)}
+  GR.rec.ondataavailable=e=>{if(e.data&&e.data.size)GR.partes.push(e.data)};
+  GR.rec.onstop=terminar;
+  const c=ctx();if(c){const s=c.createMediaStreamSource(GR.stream);GR.an=c.createAnalyser();GR.an.fftSize=1024;s.connect(GR.an);GR.buf=new Float32Array(GR.an.fftSize);nivel()}
+  GR.rec.start(1000);GR.ini=Date.now();despierto(true);
+  GR.timer=setInterval(()=>{$('#gReloj').textContent=mmss((Date.now()-GR.ini)/1000)},250);
+  $('#gBtn').textContent='■ Parar y guardar';$('#gBtn').classList.remove('rojo');
+  $('#gInfo').innerHTML='<span class="punto"></span>Grabando… no cierres esta pantalla';
+}
+function nivel(){if(!GR.an)return;GR.an.getFloatTimeDomainData(GR.buf);let m=0;for(const v of GR.buf)m=Math.max(m,Math.abs(v));$('#gNivel').style.width=Math.min(100,m*130)+'%';GR.raf=requestAnimationFrame(nivel)}
+async function terminar(){
+  clearInterval(GR.timer);cancelAnimationFrame(GR.raf);GR.an=null;$('#gNivel').style.width='0';despierto(false);
+  if(GR.stream)GR.stream.getTracks().forEach(t=>t.stop());
+  const dur=(Date.now()-GR.ini)/1000;const tipo=(GR.rec.mimeType||GR.tipo||'audio/webm').split(';')[0];
+  const blob=new Blob(GR.partes,{type:tipo});
+  const d=new Date(),p=n=>String(n).padStart(2,'0');
+  const item={id:Date.now(),nombre:'Grabación '+p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes()),dur,tipo,blob};
+  await db('put',item);
+  $('#gBtn').textContent='● Grabar';$('#gBtn').classList.add('rojo');$('#gReloj').textContent='00:00';
+  $('#gInfo').textContent='✅ Guardada: '+item.nombre+' ('+mmss(dur)+')';
+  pintaLista();
+}
+// Grabaciones guardadas en el móvil (IndexedDB)
+function abrirDB(){return new Promise((res,rej)=>{const r=indexedDB.open('smc-grabadora',1);r.onupgradeneeded=()=>r.result.createObjectStore('g',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+let MEM=[];
+async function db(op,v){
+  try{const d=await abrirDB();return await new Promise((res,rej)=>{const tx=d.transaction('g',op==='all'?'readonly':'readwrite'),st=tx.objectStore('g');
+    const r=op==='put'?st.put(v):op==='del'?st.delete(v):st.getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+  catch(e){ // sin IndexedDB (navegación privada): solo en memoria mientras la página esté abierta
+    if(op==='put'){MEM.push(v);return}if(op==='del'){MEM=MEM.filter(x=>x.id!==v);return}return MEM.slice()}
+}
+const URLS={};
+function ext(t){return /mp4|m4a|aac/.test(t)?'m4a':/ogg/.test(t)?'ogg':'webm'}
+async function pintaLista(){
+  const l=(await db('all')||[]).sort((a,b)=>b.id-a.id);
+  Object.values(URLS).forEach(u=>URL.revokeObjectURL(u));
+  $('#gLista').innerHTML=l.length?l.map(g=>{URLS[g.id]=URL.createObjectURL(g.blob);return `<div class="grab"><b>${g.nombre}</b><span class="meta">${mmss(g.dur)}</span>
+    <audio controls preload="metadata" src="${URLS[g.id]}"></audio>
+    <div class="acc"><button onclick="compartir(${g.id})">📤 Compartir</button><button onclick="descargar(${g.id})">⬇️ Guardar</button><button class="borrar" onclick="borrar(${g.id})">🗑</button></div></div>`}).join(''):'<p class="meta">Todavía no hay grabaciones.</p>';
+}
+async function buscar(id){return (await db('all')||[]).find(g=>g.id===id)}
+async function compartir(id){
+  const g=await buscar(id);if(!g)return;
+  const f=new File([g.blob],g.nombre.replace(/[\/:]/g,'-')+'.'+ext(g.tipo),{type:g.tipo});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:g.nombre})}catch(e){}}
+  else descargar(id);
+}
+async function descargar(id){const g=await buscar(id);if(!g)return;const a=document.createElement('a');a.href=URLS[id]||URL.createObjectURL(g.blob);a.download=g.nombre.replace(/[\/:]/g,'-')+'.'+ext(g.tipo);document.body.appendChild(a);a.click();a.remove()}
+async function borrar(id){if(!confirm('¿Borrar esta grabación del móvil?'))return;await db('del',id);pintaLista()}
+
+// ---------- Inicio ----------
+ver(location.hash==='#grabadora'?'grabadora':'afinador');
+window.addEventListener('hashchange',()=>ver(location.hash==='#grabadora'?'grabadora':'afinador'));
+pintaLista();
+</script>
+</body>
+</html>
