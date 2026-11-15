@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "699071996245",
+    "project_id": "smc-cehegin",
+    "storage_bucket": "smc-cehegin.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:699071996245:android:b884e30f6191a19ac14fdc",
+        "android_client_info": {
+          "package_name": "es.smcehegin.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHw6pcpv74U_HeZMwR3EGg5Dt49XYU4bU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
