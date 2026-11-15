@@ -18,7 +18,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Crear el proyecto Android (App SMC 3.6.1)
+      - name: Crear el proyecto Android (App SMC 3.6.2)
         run: |
           mkdir -p "$(dirname 'settings.gradle')"
           cat > 'settings.gradle' <<'FIN_DEL_ARCHIVO'
@@ -64,8 +64,8 @@ jobs:
                   applicationId 'es.smcehegin.app'
                   minSdk 24
                   targetSdk 34
-                  versionCode 361
-                  versionName '3.6.1'
+                  versionCode 362
+                  versionName '3.6.2'
               }
 
               signingConfigs {
@@ -102,6 +102,8 @@ jobs:
               <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
               <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
               <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+              <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+              <uses-permission android:name="android.permission.VIBRATE" />
 
               <queries>
                   <intent>
@@ -531,8 +533,23 @@ jobs:
               }
 
               private void pedirPermisoNotificaciones() {
-                  if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED)
+                  if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
                       requestPermissions(new String[]{ "android.permission.POST_NOTIFICATIONS" }, 42);
+                      return; // la batería se pide la próxima vez, para no juntar dos ventanas
+                  }
+                  pedirSinAhorroBateria();
+              }
+
+              /** Para que el ahorro de batería no retrase los avisos (se pregunta una sola vez). */
+              private void pedirSinAhorroBateria() {
+                  try {
+                      if (prefs().getBoolean("bateriaPedida", false)) return;
+                      android.os.PowerManager pm = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
+                      if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) return;
+                      prefs().edit().putBoolean("bateriaPedida", true).apply();
+                      Intent i = new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()));
+                      startActivity(i);
+                  } catch (Exception e) { /* algunos móviles no lo permiten */ }
               }
 
               /** Lo usa la app web: al entrar le da al móvil su dirección personal de novedades; al salir la borra. */
@@ -726,7 +743,7 @@ jobs:
               static final String DESDE = "notiDesde";
               private static final int TRABAJO = 7;
               private static final int TRABAJO_YA = 8;
-              private static final String CANAL = "novedades";
+              private static final String CANAL = "avisos_banda";
 
               static void programar(Context c, boolean comprobarYa) {
                   JobScheduler js = (JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
@@ -735,7 +752,7 @@ jobs:
                   if (js.getPendingJob(TRABAJO) == null) {
                       js.schedule(new JobInfo.Builder(TRABAJO, yo)
                           .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
-                          .setPeriodic(30 * 60 * 1000L)
+                          .setPeriodic(15 * 60 * 1000L)
                           .setPersisted(true)
                           .build());
                   }
@@ -804,9 +821,16 @@ jobs:
               private static void crearCanal(Context c) {
                   if (Build.VERSION.SDK_INT < 26) return;
                   NotificationManager nm = c.getSystemService(NotificationManager.class);
-                  if (nm == null || nm.getNotificationChannel(CANAL) != null) return;
-                  NotificationChannel ch = new NotificationChannel(CANAL, "Novedades de la banda", NotificationManager.IMPORTANCE_DEFAULT);
+                  if (nm == null) return;
+                  if (nm.getNotificationChannel("novedades") != null) nm.deleteNotificationChannel("novedades");
+                  if (nm.getNotificationChannel(CANAL) != null) return;
+                  NotificationChannel ch = new NotificationChannel(CANAL, "Avisos de la banda", NotificationManager.IMPORTANCE_HIGH);
                   ch.setDescription("Agenda, menciones, partituras y avisos");
+                  ch.enableVibration(true);
+                  ch.enableLights(true);
+                  ch.setLightColor(Color.parseColor("#d4b46a"));
+                  ch.setShowBadge(true);
+                  ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
                   nm.createNotificationChannel(ch);
               }
 
@@ -822,6 +846,10 @@ jobs:
                       .setContentText(texto)
                       .setStyle(new Notification.BigTextStyle().bigText(texto))
                       .setAutoCancel(true)
+                      .setCategory(Notification.CATEGORY_MESSAGE)
+                      .setVisibility(Notification.VISIBILITY_PUBLIC)
+                      .setPriority(Notification.PRIORITY_HIGH)
+                      .setDefaults(Notification.DEFAULT_ALL)
                       .setContentIntent(pi);
                   NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
                   try { if (nm != null) nm.notify(id, b.build()); } catch (SecurityException e) { /* sin permiso de notificaciones */ }
