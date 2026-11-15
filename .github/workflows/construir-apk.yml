@@ -18,7 +18,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Crear el proyecto Android (App SMC 3.5.1)
+      - name: Crear el proyecto Android (App SMC 3.6.0)
         run: |
           mkdir -p "$(dirname 'settings.gradle')"
           cat > 'settings.gradle' <<'FIN_DEL_ARCHIVO'
@@ -64,8 +64,8 @@ jobs:
                   applicationId 'es.smcehegin.app'
                   minSdk 24
                   targetSdk 34
-                  versionCode 350
-                  versionName '3.5.0'
+                  versionCode 360
+                  versionName '3.6.0'
               }
 
               signingConfigs {
@@ -100,6 +100,8 @@ jobs:
 
               <uses-permission android:name="android.permission.INTERNET" />
               <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
               <queries>
                   <intent>
@@ -138,6 +140,11 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                   </activity>
+                  <!-- Novedades en segundo plano: consulta la app cada ~30 min y muestra la notificación -->
+                  <service
+                      android:name=".Avisador"
+                      android:permission="android.permission.BIND_JOB_SERVICE"
+                      android:exported="false" />
               </application>
           </manifest>
           FIN_DEL_ARCHIVO
@@ -205,6 +212,9 @@ jobs:
           import android.widget.ProgressBar;
           import android.widget.TextView;
           import android.widget.Toast;
+          import android.webkit.JavascriptInterface;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
 
           /**
            * App SMC · Sociedad Musical de Cehegín.
@@ -238,7 +248,7 @@ jobs:
 
                   String url = urlGuardada();
                   if (url.isEmpty()) mostrarConfiguracion(null);
-                  else abrirApp(url, estado);
+                  else abrirApp(conVista(url, getIntent()), vistaDe(getIntent()) != null ? null : estado);
               }
 
               // ------------------------------------------------------------------ dirección de la app
@@ -394,6 +404,7 @@ jobs:
                   cookies.setAcceptCookie(true);
                   cookies.setAcceptThirdPartyCookies(web, true);
 
+                  web.addJavascriptInterface(new Puente(), "SMCApp");
                   web.setWebViewClient(new Cliente());
                   web.setWebChromeClient(navegador);
                   web.setDownloadListener((enlace, agente, disposicion, tipo, tamano) -> abrirFuera(enlace));
@@ -497,6 +508,53 @@ jobs:
                       + "<a class='a' href='smc://reintentar'>Reintentar</a><a class='b' href='smc://cambiar'>Cambiar la dirección de la app</a></body></html>";
                   web.loadDataWithBaseURL("https://smc.local/", html, "text/html", "utf-8", null);
               }
+
+              // ------------------------------------------------------------------ notificaciones
+              private static String vistaDe(Intent i) {
+                  if (i == null) return null;
+                  String v = i.getStringExtra("vista");
+                  return v != null && v.matches("[a-z]{3,20}") ? v : null;
+              }
+
+              private static String conVista(String url, Intent i) {
+                  String v = vistaDe(i);
+                  if (v == null || url.isEmpty()) return url;
+                  return url + (url.contains("?") ? "&" : "?") + "v=" + v;
+              }
+
+              @Override
+              protected void onNewIntent(Intent i) {
+                  super.onNewIntent(i);
+                  setIntent(i);
+                  String v = vistaDe(i);
+                  if (v != null && web != null) web.loadUrl(conVista(urlGuardada(), i));
+              }
+
+              private void pedirPermisoNotificaciones() {
+                  if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED)
+                      requestPermissions(new String[]{ "android.permission.POST_NOTIFICATIONS" }, 42);
+              }
+
+              /** Lo usa la app web: al entrar le da al móvil su dirección personal de novedades; al salir la borra. */
+              private class Puente {
+                  @JavascriptInterface
+                  public void registrar(String url) {
+                      if (url == null || !url.startsWith("https://script.google.com/") || !url.contains("p=noti")) return;
+                      boolean nuevo = !url.equals(prefs().getString(Avisador.CLAVE, ""));
+                      if (nuevo) prefs().edit().putString(Avisador.CLAVE, url).remove(Avisador.DESDE).apply();
+                      runOnUiThread(() -> { pedirPermisoNotificaciones(); Avisador.programar(MainActivity.this, nuevo); });
+                  }
+
+                  @JavascriptInterface
+                  public void borrar() {
+                      prefs().edit().remove(Avisador.CLAVE).remove(Avisador.DESDE).apply();
+                      Avisador.cancelar(MainActivity.this);
+                  }
+
+                  @JavascriptInterface
+                  public String version() { return "3.6.0"; }
+              }
+
 
               private class Navegador extends WebChromeClient {
                   @Override
@@ -618,6 +676,156 @@ jobs:
               }
           }
           FIN_DEL_ARCHIVO
+          mkdir -p app/src/main/res/drawable
+          cat > 'app/src/main/res/drawable/ic_noti.xml' <<'FIN_DEL_ARCHIVO'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+              <path android:fillColor="#FFFFFFFF"
+                  android:pathData="M12,22c1.1,0 2,-0.9 2,-2h-4c0,1.1 0.9,2 2,2zM18,16v-5c0,-3.07 -1.64,-5.64 -4.5,-6.32V4c0,-0.83 -0.67,-1.5 -1.5,-1.5s-1.5,0.67 -1.5,1.5v0.68C7.63,5.36 6,7.92 6,11v5l-2,2v1h16v-1l-2,-2z" />
+          </vector>
+          FIN_DEL_ARCHIVO
+          cat > 'app/src/main/java/es/smcehegin/app/Avisador.java' <<'FIN_DEL_ARCHIVO'
+          package es.smcehegin.app;
+
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.app.job.JobInfo;
+          import android.app.job.JobParameters;
+          import android.app.job.JobScheduler;
+          import android.app.job.JobService;
+          import android.content.ComponentName;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.graphics.Color;
+          import android.os.Build;
+
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          import java.io.BufferedReader;
+          import java.io.InputStreamReader;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.net.URLEncoder;
+          import java.nio.charset.StandardCharsets;
+
+          /**
+           * Novedades en segundo plano: cada ~30 minutos pregunta a la app (Google Apps Script)
+           * si hay cambios en la agenda, menciones, partituras o avisos, y los muestra como notificación.
+           */
+          public class Avisador extends JobService {
+
+              static final String CLAVE = "noti";
+              static final String DESDE = "notiDesde";
+              private static final int TRABAJO = 7;
+              private static final int TRABAJO_YA = 8;
+              private static final String CANAL = "novedades";
+
+              static void programar(Context c, boolean comprobarYa) {
+                  JobScheduler js = (JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+                  if (js == null) return;
+                  ComponentName yo = new ComponentName(c, Avisador.class);
+                  if (js.getPendingJob(TRABAJO) == null) {
+                      js.schedule(new JobInfo.Builder(TRABAJO, yo)
+                          .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                          .setPeriodic(30 * 60 * 1000L)
+                          .setPersisted(true)
+                          .build());
+                  }
+                  if (comprobarYa) {
+                      js.schedule(new JobInfo.Builder(TRABAJO_YA, yo)
+                          .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                          .setOverrideDeadline(5000)
+                          .build());
+                  }
+              }
+
+              static void cancelar(Context c) {
+                  JobScheduler js = (JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+                  if (js != null) { js.cancel(TRABAJO); js.cancel(TRABAJO_YA); }
+              }
+
+              @Override
+              public boolean onStartJob(JobParameters p) {
+                  new Thread(() -> {
+                      try { comprobar(getApplicationContext()); } catch (Exception e) { /* sin conexión: se reintenta en la próxima vuelta */ }
+                      jobFinished(p, false);
+                  }).start();
+                  return true;
+              }
+
+              @Override
+              public boolean onStopJob(JobParameters p) { return true; }
+
+              static void comprobar(Context c) throws Exception {
+                  SharedPreferences sp = c.getSharedPreferences("smc", Context.MODE_PRIVATE);
+                  String url = sp.getString(CLAVE, "");
+                  if (url == null || url.isEmpty()) return;
+                  String desde = sp.getString(DESDE, "");
+                  HttpURLConnection con = (HttpURLConnection) new URL(url + "&d=" + URLEncoder.encode(desde == null ? "" : desde, "UTF-8")).openConnection();
+                  con.setInstanceFollowRedirects(true);
+                  con.setConnectTimeout(20000);
+                  con.setReadTimeout(30000);
+                  StringBuilder sb = new StringBuilder();
+                  try (BufferedReader r = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8))) {
+                      String l; while ((l = r.readLine()) != null) sb.append(l);
+                  } finally { con.disconnect(); }
+                  JSONObject o = new JSONObject(sb.toString());
+                  if (o.has("error")) {
+                      if ("clave".equals(o.optString("error"))) { sp.edit().remove(CLAVE).remove(DESDE).apply(); cancelar(c); }
+                      return;
+                  }
+                  JSONArray l = o.optJSONArray("l");
+                  if (l != null && l.length() > 0) {
+                      crearCanal(c);
+                      int total = o.optInt("total", l.length());
+                      if (l.length() <= 4 && total <= 4) {
+                          for (int i = 0; i < l.length(); i++) {
+                              JSONObject n = l.getJSONObject(i);
+                              mostrar(c, n.optString("id").hashCode(), n.optString("titulo"), n.optString("texto"), n.optString("vista"));
+                          }
+                      } else {
+                          StringBuilder t = new StringBuilder();
+                          for (int i = l.length() - 1; i >= 0 && i >= l.length() - 5; i--) t.append(l.getJSONObject(i).optString("titulo")).append('\n');
+                          mostrar(c, 1, "Tienes " + total + " novedades en la app", t.toString().trim(), "");
+                      }
+                  }
+                  String ultimo = o.optString("ultimo", "");
+                  if (!ultimo.isEmpty()) sp.edit().putString(DESDE, ultimo).apply();
+              }
+
+              private static void crearCanal(Context c) {
+                  if (Build.VERSION.SDK_INT < 26) return;
+                  NotificationManager nm = c.getSystemService(NotificationManager.class);
+                  if (nm == null || nm.getNotificationChannel(CANAL) != null) return;
+                  NotificationChannel ch = new NotificationChannel(CANAL, "Novedades de la banda", NotificationManager.IMPORTANCE_DEFAULT);
+                  ch.setDescription("Agenda, menciones, partituras y avisos");
+                  nm.createNotificationChannel(ch);
+              }
+
+              private static void mostrar(Context c, int id, String titulo, String texto, String vista) {
+                  Intent i = new Intent(c, MainActivity.class);
+                  if (vista != null && !vista.isEmpty()) i.putExtra("vista", vista);
+                  i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                  PendingIntent pi = PendingIntent.getActivity(c, id, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                  Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(c, CANAL) : new Notification.Builder(c);
+                  b.setSmallIcon(R.drawable.ic_noti)
+                      .setColor(Color.parseColor("#13213f"))
+                      .setContentTitle(titulo)
+                      .setContentText(texto)
+                      .setStyle(new Notification.BigTextStyle().bigText(texto))
+                      .setAutoCancel(true)
+                      .setContentIntent(pi);
+                  NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
+                  try { if (nm != null) nm.notify(id, b.build()); } catch (SecurityException e) { /* sin permiso de notificaciones */ }
+              }
+          }
+          FIN_DEL_ARCHIVO
+
           mkdir -p "$(dirname 'app/icono.b64')"
           cat > 'app/icono.b64' <<'FIN_DEL_ARCHIVO'
           iVBORw0KGgoAAAANSUhEUgAAAJAAAACQCAMAAADQmBKKAAAAwFBMVEXTq2SbaC3o15iumGmzqI7L
