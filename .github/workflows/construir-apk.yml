@@ -11,6 +11,7 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -18,7 +19,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Crear el proyecto Android (App SMC 3.6.2)
+      - name: Crear el proyecto Android (App SMC 3.7.0)
         run: |
           mkdir -p "$(dirname 'settings.gradle')"
           cat > 'settings.gradle' <<'FIN_DEL_ARCHIVO'
@@ -43,17 +44,25 @@ jobs:
           cat > 'build.gradle' <<'FIN_DEL_ARCHIVO'
           plugins {
               id 'com.android.application' version '8.5.2' apply false
+              id 'com.google.gms.google-services' version '4.4.2' apply false
           }
           FIN_DEL_ARCHIVO
           mkdir -p "$(dirname 'gradle.properties')"
           cat > 'gradle.properties' <<'FIN_DEL_ARCHIVO'
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           android.nonTransitiveRClass=true
+          android.useAndroidX=true
           FIN_DEL_ARCHIVO
           mkdir -p "$(dirname 'app/build.gradle')"
           cat > 'app/build.gradle' <<'FIN_DEL_ARCHIVO'
           plugins {
               id 'com.android.application'
+              id 'com.google.gms.google-services'
+          }
+
+          dependencies {
+              implementation platform('com.google.firebase:firebase-bom:33.7.0')
+              implementation 'com.google.firebase:firebase-messaging'
           }
 
           android {
@@ -64,8 +73,8 @@ jobs:
                   applicationId 'es.smcehegin.app'
                   minSdk 24
                   targetSdk 34
-                  versionCode 362
-                  versionName '3.6.2'
+                  versionCode 370
+                  versionName '3.7.0'
               }
 
               signingConfigs {
@@ -147,6 +156,14 @@ jobs:
                       android:name=".Avisador"
                       android:permission="android.permission.BIND_JOB_SERVICE"
                       android:exported="false" />
+                  <!-- Notificaciones instantáneas (Firebase Cloud Messaging) -->
+                  <service
+                      android:name=".Mensajero"
+                      android:exported="false">
+                      <intent-filter>
+                          <action android:name="com.google.firebase.MESSAGING_EVENT" />
+                      </intent-filter>
+                  </service>
               </application>
           </manifest>
           FIN_DEL_ARCHIVO
@@ -407,6 +424,10 @@ jobs:
                   cookies.setAcceptThirdPartyCookies(web, true);
 
                   web.addJavascriptInterface(new Puente(), "SMCApp");
+                  try {
+                      com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken()
+                          .addOnSuccessListener(t -> { if (t != null) prefs().edit().putString("fcm", t).apply(); });
+                  } catch (Exception e) { /* sin Google Play Services: quedan las comprobaciones periódicas */ }
                   web.setWebViewClient(new Cliente());
                   web.setWebChromeClient(navegador);
                   web.setDownloadListener((enlace, agente, disposicion, tipo, tamano) -> abrirFuera(enlace));
@@ -572,7 +593,10 @@ jobs:
                   public void comprobar() { runOnUiThread(() -> Avisador.programar(MainActivity.this, true)); }
 
                   @JavascriptInterface
-                  public String version() { return "3.6.1"; }
+                  public String token() { return prefs().getString("fcm", ""); }
+
+                  @JavascriptInterface
+                  public String version() { return "3.7.0"; }
               }
 
 
@@ -696,6 +720,41 @@ jobs:
               }
           }
           FIN_DEL_ARCHIVO
+          if [ ! -f google-services.json ]; then echo "::error::Falta google-services.json en el repositorio (descárgalo de Firebase y súbelo a la raíz)"; exit 1; fi
+          cp google-services.json app/google-services.json
+          cat > 'app/src/main/java/es/smcehegin/app/Mensajero.java' <<'FIN_DEL_ARCHIVO'
+          package es.smcehegin.app;
+
+          import android.content.Context;
+
+          import com.google.firebase.messaging.FirebaseMessagingService;
+          import com.google.firebase.messaging.RemoteMessage;
+
+          import java.util.Map;
+
+          /** Recibe al instante los avisos de la banda (Firebase Cloud Messaging) y los muestra como notificación. */
+          public class Mensajero extends FirebaseMessagingService {
+
+              @Override
+              public void onMessageReceived(RemoteMessage m) {
+                  Map<String, String> d = m.getData();
+                  String titulo = d.get("titulo");
+                  if (titulo == null && m.getNotification() != null) titulo = m.getNotification().getTitle();
+                  String texto = d.get("texto");
+                  if (texto == null && m.getNotification() != null) texto = m.getNotification().getBody();
+                  if (titulo == null) return;
+                  String id = d.get("id");
+                  Avisador.crearCanal(this);
+                  Avisador.mostrar(this, id != null ? id.hashCode() : (int) System.currentTimeMillis(), titulo, texto == null ? "" : texto, d.get("vista"));
+              }
+
+              @Override
+              public void onNewToken(String token) {
+                  getSharedPreferences("smc", Context.MODE_PRIVATE).edit().putString("fcm", token).apply();
+              }
+          }
+          FIN_DEL_ARCHIVO
+
           mkdir -p app/src/main/res/drawable
           cat > 'app/src/main/res/drawable/ic_noti.xml' <<'FIN_DEL_ARCHIVO'
           <?xml version="1.0" encoding="utf-8"?>
@@ -818,7 +877,7 @@ jobs:
                   if (!ultimo.isEmpty()) sp.edit().putString(DESDE, ultimo).apply();
               }
 
-              private static void crearCanal(Context c) {
+              static void crearCanal(Context c) {
                   if (Build.VERSION.SDK_INT < 26) return;
                   NotificationManager nm = c.getSystemService(NotificationManager.class);
                   if (nm == null) return;
@@ -834,7 +893,7 @@ jobs:
                   nm.createNotificationChannel(ch);
               }
 
-              private static void mostrar(Context c, int id, String titulo, String texto, String vista) {
+              static void mostrar(Context c, int id, String titulo, String texto, String vista) {
                   Intent i = new Intent(c, MainActivity.class);
                   if (vista != null && !vista.isEmpty()) i.putExtra("vista", vista);
                   i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
