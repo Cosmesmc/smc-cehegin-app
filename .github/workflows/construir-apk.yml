@@ -18,7 +18,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Crear el proyecto Android (App SMC 3.6.0)
+      - name: Crear el proyecto Android (App SMC 3.6.1)
         run: |
           mkdir -p "$(dirname 'settings.gradle')"
           cat > 'settings.gradle' <<'FIN_DEL_ARCHIVO'
@@ -64,8 +64,8 @@ jobs:
                   applicationId 'es.smcehegin.app'
                   minSdk 24
                   targetSdk 34
-                  versionCode 360
-                  versionName '3.6.0'
+                  versionCode 361
+                  versionName '3.6.1'
               }
 
               signingConfigs {
@@ -536,7 +536,7 @@ jobs:
               }
 
               /** Lo usa la app web: al entrar le da al móvil su dirección personal de novedades; al salir la borra. */
-              private class Puente {
+              public class Puente {
                   @JavascriptInterface
                   public void registrar(String url) {
                       if (url == null || !url.startsWith("https://script.google.com/") || !url.contains("p=noti")) return;
@@ -552,7 +552,10 @@ jobs:
                   }
 
                   @JavascriptInterface
-                  public String version() { return "3.6.0"; }
+                  public void comprobar() { runOnUiThread(() -> Avisador.programar(MainActivity.this, true)); }
+
+                  @JavascriptInterface
+                  public String version() { return "3.6.1"; }
               }
 
 
