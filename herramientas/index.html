@@ -47,7 +47,7 @@
   .grab audio{width:100%;margin:8px 0}
   .grab .acc{display:flex;gap:8px}
   .grab .acc button{flex:1;border:none;border-radius:10px;padding:10px 6px;font:600 14px inherit;font-family:inherit;background:#eef1f7;color:var(--azul);cursor:pointer}
-  .grab .acc button.borrar{flex:none;background:#fde8e6;color:var(--no);padding:10px 14px}
+  .grab .acc button.wa{background:#25d366;color:#fff}.grab .acc button.borrar{flex:none;background:#fde8e6;color:var(--no);padding:10px 14px}
   .punto{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--no);margin-right:8px;animation:lat 1s infinite}
   @keyframes lat{50%{opacity:.25}}
 </style>
@@ -218,29 +218,79 @@ async function db(op,v){
     if(op==='put'){MEM.push(v);return}if(op==='del'){MEM=MEM.filter(x=>x.id!==v);return}return MEM.slice()}
 }
 const URLS={};
-// Extensiones que los móviles aceptan al compartir (Chrome solo comparte audio .m4a .mp3 .ogg .oga .opus .wav .weba)
+// Para compartir (sobre todo por WhatsApp) cada grabación se convierte a MP3: WhatsApp no acepta los .weba/.webm
+// que graba Chrome y a veces tampoco sus .m4a. Si no se puede cargar el conversor, se usa WAV.
 function ext(t){return /mp4|m4a|aac/.test(t)?'m4a':/ogg/.test(t)?'ogg':'weba'}
 const GRABS={};
+let LAME=null;
+function cargarLame(){if(window.lamejs)return Promise.resolve(true);if(LAME)return LAME;
+  LAME=new Promise(res=>{const s=document.createElement('script');s.src='https:\/\/cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js';
+    s.onload=()=>res(!!window.lamejs);s.onerror=()=>{LAME=null;res(false)};document.head.appendChild(s)});return LAME}
+function aMono(ab){const n=ab.length,c=ab.numberOfChannels,o=new Float32Array(n);for(let k=0;k<c;k++){const d=ab.getChannelData(k);for(let i=0;i<n;i++)o[i]+=d[i]/c}return o}
+function aInt16(f){const o=new Int16Array(f.length);for(let i=0;i<f.length;i++){const v=Math.max(-1,Math.min(1,f[i]));o[i]=v<0?v*0x8000:v*0x7FFF}return o}
+function aMp3(pcm,sr){const enc=new lamejs.Mp3Encoder(1,sr,96),partes=[];
+  for(let i=0;i<pcm.length;i+=1152){const b=enc.encodeBuffer(pcm.subarray(i,i+1152));if(b.length)partes.push(new Uint8Array(b))}
+  const f=enc.flush();if(f.length)partes.push(new Uint8Array(f));return new Blob(partes,{type:'audio/mpeg'})}
+function aWav(pcm,sr){const b=new ArrayBuffer(44+pcm.length*2),v=new DataView(b),w=(o,t)=>{for(let i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i))};
+  w(0,'RIFF');v.setUint32(4,36+pcm.length*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,pcm.length*2,true);
+  new Int16Array(b,44).set(pcm);return new Blob([b],{type:'audio/wav'})}
+const PREP={};
+function preparar(g){
+  if(g.envio)return Promise.resolve(g.envio);
+  if(PREP[g.id])return PREP[g.id];
+  PREP[g.id]=(async()=>{
+    try{
+      const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;
+      const ac=new C();
+      const datos=await new Response(g.blob).arrayBuffer();
+      const ab=await new Promise((res,rej)=>{const r=ac.decodeAudioData(datos,res,rej);if(r&&r.then)r.then(res,rej)});
+      try{ac.close()}catch(e){}
+      const pcm=aInt16(aMono(ab)),sr=ab.sampleRate;
+      const mp3=(await cargarLame())?(()=>{try{return aMp3(pcm,sr)}catch(e){return null}})():null;
+      g.envio=mp3||aWav(pcm,sr);
+      try{await db('put',g)}catch(e){}
+      return g.envio;
+    }catch(e){return null}
+    finally{delete PREP[g.id]}
+  })();
+  return PREP[g.id];
+}
+async function prepararTodas(){for(const g of Object.values(GRABS)){if(!g.envio)await preparar(g)}}
 async function pintaLista(){
   const l=(await db('all')||[]).sort((a,b)=>b.id-a.id);
   Object.values(URLS).forEach(u=>URL.revokeObjectURL(u));
   l.forEach(g=>{GRABS[g.id]=g});
-  $('#gLista').innerHTML=l.length?l.map(g=>{URLS[g.id]=URL.createObjectURL(g.blob);return `<div class="grab"><b>${g.nombre}</b><span class="meta">${mmss(g.dur)}</span>
+  $('#gLista').innerHTML=l.length?'<p class="meta" style="margin:-4px 0 10px">Para mandar una grabación por WhatsApp pulsa <b>Compartir</b>, elige WhatsApp y luego el contacto o el grupo.</p>'+l.map(g=>{URLS[g.id]=URL.createObjectURL(g.blob);return `<div class="grab"><b>${g.nombre}</b><span class="meta">${mmss(g.dur)}</span>
     <audio controls preload="metadata" src="${URLS[g.id]}"></audio>
-    <div class="acc"><button onclick="compartir(${g.id})">📤 Compartir</button><button onclick="descargar(${g.id})">⬇️ Guardar</button><button class="borrar" onclick="borrar(${g.id})">🗑</button></div></div>`}).join(''):'<p class="meta">Todavía no hay grabaciones.</p>';
+    <div class="acc"><button class="wa" onclick="compartir(${g.id})">📤 Compartir</button><button onclick="descargar(${g.id})">⬇️ Guardar</button><button class="borrar" onclick="borrar(${g.id})">🗑</button></div></div>`}).join(''):'<p class="meta">Todavía no hay grabaciones.</p>';
+  setTimeout(prepararTodas,300);
 }
 async function buscar(id){return (await db('all')||[]).find(g=>g.id===id)}
-// Sin esperas antes de navigator.share: si no, el móvil considera que ya no lo ha pedido el usuario y lo bloquea
-function archivoDe(g){const e=ext(g.tipo),tipo=e==='m4a'?'audio/mp4':e==='ogg'?'audio/ogg':'audio/webm';
-  return new File([g.blob],g.nombre.replace(/[\/:]/g,'-')+'.'+e,{type:tipo})}
+function nombreArchivo(g){return g.nombre.replace(/[\/:]/g,'-').replace(/\s+/g,' ')}
+function archivoDe(g){
+  if(g.envio){const mp3=/mpeg/.test(g.envio.type);return new File([g.envio],nombreArchivo(g)+(mp3?'.mp3':'.wav'),{type:mp3?'audio/mpeg':'audio/wav'})}
+  const e=ext(g.tipo),tipo=e==='m4a'?'audio/mp4':e==='ogg'?'audio/ogg':'audio/webm';
+  return new File([g.blob],nombreArchivo(g)+'.'+e,{type:tipo})}
+// Sin esperas antes de navigator.share: si no, el móvil considera que ya no lo ha pedido el usuario y lo bloquea.
+// Por eso el MP3 se prepara antes; si aún no está, se prepara y se pide pulsar otra vez.
 function compartir(id){
   const g=GRABS[id];if(!g)return;
+  if(!g.envio&&!g.sinConvertir){
+    aviso('⏳ Preparando el audio para WhatsApp…');
+    preparar(g).then(r=>{if(!r)g.sinConvertir=true;aviso(r?'✅ Listo. Pulsa otra vez 📤 Compartir y elige WhatsApp.':'No se ha podido convertir; se enviará el audio original. Pulsa otra vez 📤 Compartir.')});
+    return;
+  }
   const f=archivoDe(g);
   if(navigator.canShare&&navigator.canShare({files:[f]})){
-    navigator.share({files:[f],title:g.nombre}).catch(e=>{if(e&&e.name!=='AbortError'){aviso('No se ha podido compartir. Se guarda el archivo para que lo envíes desde Descargas.');descargar(id)}});
-  } else if(navigator.share){
-    aviso('Este navegador no deja compartir audios. Se guarda el archivo en Descargas para que lo envíes desde allí.');descargar(id);
-  } else { aviso('Se guarda el archivo en Descargas para que lo envíes desde allí.');descargar(id) }
+    navigator.share({files:[f],title:g.nombre}).catch(e=>{if(e&&e.name!=='AbortError')porWhatsApp(g)});
+  } else porWhatsApp(g);
+}
+// Navegadores que no dejan compartir archivos: se guarda el MP3 y se abre WhatsApp para adjuntarlo (📎 › Documento › Descargas)
+function porWhatsApp(g){
+  descargar(g.id);
+  aviso('El MP3 se ha guardado en Descargas. En WhatsApp elige el chat y adjúntalo con 📎 › Documento.');
+  setTimeout(()=>{location.href='https:\/\/wa.me/?text='+encodeURIComponent('🎵 '+g.nombre+' (te adjunto el audio)')},1200);
 }
 function aviso(t){const el=$('#gInfo');if(el)el.textContent=t}
 function descargar(id){const g=GRABS[id];if(!g)return;const f=archivoDe(g);const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();a.remove()}
