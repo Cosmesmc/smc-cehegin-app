@@ -55,7 +55,7 @@
 <body>
 <header>
   <h1>🎺 Herramientas · Sociedad Musical de Cehegín</h1>
-  <div class="tabs"><button id="tAfi" onclick="ver('afinador')">🎯 Afinador</button><button id="tGra" onclick="ver('grabadora')">🎙️ Grabadora</button></div>
+  <div class="tabs"><button id="tAfi" onclick="ver('afinador')"><svg class="diapasonIco" style="vertical-align:-3px;margin-right:4px" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2v7a3 3 0 0 0 6 0V2"/><path d="M12 12v10"/><path d="M5.5 3.5c-1.3 1.4-1.3 3.6 0 5"/><path d="M18.5 3.5c1.3 1.4 1.3 3.6 0 5"/></svg>Afinador</button><button id="tGra" onclick="ver('grabadora')">🎙️ Grabadora</button></div>
 </header>
 <main>
   <!-- ================= AFINADOR ================= -->
@@ -178,7 +178,7 @@ function bucle(){
 
 // ---------- Grabadora ----------
 const GR={rec:null,stream:null,partes:[],ini:0,timer:0,an:null,buf:null,raf:0,tipo:''};
-function tipoAudio(){if(!window.MediaRecorder)return null;for(const t of ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'])if(MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t))return t;return ''}
+function tipoAudio(){if(!window.MediaRecorder)return null;for(const t of ['audio/mp4;codecs=mp4a.40.2','audio/mp4','audio/aac','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'])if(MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t))return t;return ''}
 const mmss=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(Math.floor(s%60)).padStart(2,'0');
 async function grabar(){
   if(GR.rec&&GR.rec.state==='recording'){GR.rec.stop();return}
@@ -218,22 +218,32 @@ async function db(op,v){
     if(op==='put'){MEM.push(v);return}if(op==='del'){MEM=MEM.filter(x=>x.id!==v);return}return MEM.slice()}
 }
 const URLS={};
-function ext(t){return /mp4|m4a|aac/.test(t)?'m4a':/ogg/.test(t)?'ogg':'webm'}
+// Extensiones que los móviles aceptan al compartir (Chrome solo comparte audio .m4a .mp3 .ogg .oga .opus .wav .weba)
+function ext(t){return /mp4|m4a|aac/.test(t)?'m4a':/ogg/.test(t)?'ogg':'weba'}
+const GRABS={};
 async function pintaLista(){
   const l=(await db('all')||[]).sort((a,b)=>b.id-a.id);
   Object.values(URLS).forEach(u=>URL.revokeObjectURL(u));
+  l.forEach(g=>{GRABS[g.id]=g});
   $('#gLista').innerHTML=l.length?l.map(g=>{URLS[g.id]=URL.createObjectURL(g.blob);return `<div class="grab"><b>${g.nombre}</b><span class="meta">${mmss(g.dur)}</span>
     <audio controls preload="metadata" src="${URLS[g.id]}"></audio>
     <div class="acc"><button onclick="compartir(${g.id})">📤 Compartir</button><button onclick="descargar(${g.id})">⬇️ Guardar</button><button class="borrar" onclick="borrar(${g.id})">🗑</button></div></div>`}).join(''):'<p class="meta">Todavía no hay grabaciones.</p>';
 }
 async function buscar(id){return (await db('all')||[]).find(g=>g.id===id)}
-async function compartir(id){
-  const g=await buscar(id);if(!g)return;
-  const f=new File([g.blob],g.nombre.replace(/[\/:]/g,'-')+'.'+ext(g.tipo),{type:g.tipo});
-  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:g.nombre})}catch(e){}}
-  else descargar(id);
+// Sin esperas antes de navigator.share: si no, el móvil considera que ya no lo ha pedido el usuario y lo bloquea
+function archivoDe(g){const e=ext(g.tipo),tipo=e==='m4a'?'audio/mp4':e==='ogg'?'audio/ogg':'audio/webm';
+  return new File([g.blob],g.nombre.replace(/[\/:]/g,'-')+'.'+e,{type:tipo})}
+function compartir(id){
+  const g=GRABS[id];if(!g)return;
+  const f=archivoDe(g);
+  if(navigator.canShare&&navigator.canShare({files:[f]})){
+    navigator.share({files:[f],title:g.nombre}).catch(e=>{if(e&&e.name!=='AbortError'){aviso('No se ha podido compartir. Se guarda el archivo para que lo envíes desde Descargas.');descargar(id)}});
+  } else if(navigator.share){
+    aviso('Este navegador no deja compartir audios. Se guarda el archivo en Descargas para que lo envíes desde allí.');descargar(id);
+  } else { aviso('Se guarda el archivo en Descargas para que lo envíes desde allí.');descargar(id) }
 }
-async function descargar(id){const g=await buscar(id);if(!g)return;const a=document.createElement('a');a.href=URLS[id]||URL.createObjectURL(g.blob);a.download=g.nombre.replace(/[\/:]/g,'-')+'.'+ext(g.tipo);document.body.appendChild(a);a.click();a.remove()}
+function aviso(t){const el=$('#gInfo');if(el)el.textContent=t}
+function descargar(id){const g=GRABS[id];if(!g)return;const f=archivoDe(g);const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();a.remove()}
 async function borrar(id){if(!confirm('¿Borrar esta grabación del móvil?'))return;await db('del',id);pintaLista()}
 
 // ---------- Inicio ----------
