@@ -73,8 +73,8 @@ jobs:
                   applicationId 'es.smcehegin.app'
                   minSdk 24
                   targetSdk 34
-                  versionCode 370
-                  versionName '3.7.0'
+                  versionCode 371
+                  versionName '3.7.1'
               }
 
               signingConfigs {
@@ -596,7 +596,10 @@ jobs:
                   public String token() { return prefs().getString("fcm", ""); }
 
                   @JavascriptInterface
-                  public String version() { return "3.7.0"; }
+                  public String version() { return "3.7.1"; }
+
+                  @JavascriptInterface
+                  public boolean sonidoPropio() { return true; }
               }
 
 
@@ -745,7 +748,7 @@ jobs:
                   if (titulo == null) return;
                   String id = d.get("id");
                   Avisador.crearCanal(this);
-                  Avisador.mostrar(this, id != null ? id.hashCode() : (int) System.currentTimeMillis(), titulo, texto == null ? "" : texto, d.get("vista"));
+                  Avisador.mostrar(this, id != null ? id.hashCode() : (int) System.currentTimeMillis(), titulo, texto == null ? "" : texto, d.get("vista"), "empezamos".equals(d.get("tipo")));
               }
 
               @Override
@@ -893,12 +896,39 @@ jobs:
                   nm.createNotificationChannel(ch);
               }
 
-              static void mostrar(Context c, int id, String titulo, String texto, String vista) {
+              static final String CANAL_EMP = "empezamos_v1";
+
+              /** Canal propio de «¡Empezamos ya!»: suena con la música de la banda (res/raw/empezamos.mp3). */
+              static android.net.Uri sonidoEmp(Context c) {
+                  return android.net.Uri.parse("android.resource://" + c.getPackageName() + "/" + R.raw.empezamos);
+              }
+
+              static void crearCanalEmp(Context c) {
+                  if (Build.VERSION.SDK_INT < 26) return;
+                  NotificationManager nm = c.getSystemService(NotificationManager.class);
+                  if (nm == null || nm.getNotificationChannel(CANAL_EMP) != null) return;
+                  NotificationChannel ch = new NotificationChannel(CANAL_EMP, "¡Empezamos ya!", NotificationManager.IMPORTANCE_HIGH);
+                  ch.setDescription("Aviso de la junta directiva: la actuación va a comenzar (con música)");
+                  ch.setSound(sonidoEmp(c), new android.media.AudioAttributes.Builder()
+                      .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                      .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build());
+                  ch.enableVibration(true);
+                  ch.setVibrationPattern(new long[]{0, 400, 150, 400, 150, 800});
+                  ch.enableLights(true);
+                  ch.setLightColor(Color.parseColor("#d4b46a"));
+                  ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+                  nm.createNotificationChannel(ch);
+              }
+
+              static void mostrar(Context c, int id, String titulo, String texto, String vista) { mostrar(c, id, titulo, texto, vista, false); }
+
+              static void mostrar(Context c, int id, String titulo, String texto, String vista, boolean empezamos) {
+                  if (empezamos) crearCanalEmp(c);
                   Intent i = new Intent(c, MainActivity.class);
                   if (vista != null && !vista.isEmpty()) i.putExtra("vista", vista);
                   i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
                   PendingIntent pi = PendingIntent.getActivity(c, id, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                  Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(c, CANAL) : new Notification.Builder(c);
+                  Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(c, empezamos ? CANAL_EMP : CANAL) : new Notification.Builder(c);
                   b.setSmallIcon(R.drawable.ic_noti)
                       .setColor(Color.parseColor("#13213f"))
                       .setContentTitle(titulo)
@@ -908,14 +938,20 @@ jobs:
                       .setCategory(Notification.CATEGORY_MESSAGE)
                       .setVisibility(Notification.VISIBILITY_PUBLIC)
                       .setPriority(Notification.PRIORITY_HIGH)
-                      .setDefaults(Notification.DEFAULT_ALL)
+                      .setDefaults(empezamos ? (Notification.DEFAULT_VIBRATE | Notification.DEFAULT_LIGHTS) : Notification.DEFAULT_ALL)
                       .setContentIntent(pi);
+                  if (empezamos) b.setSound(sonidoEmp(c));
                   NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
                   try { if (nm != null) nm.notify(id, b.build()); } catch (SecurityException e) { /* sin permiso de notificaciones */ }
               }
           }
           FIN_DEL_ARCHIVO
 
+          # Música de «¡Empezamos ya!» (Drive, compartido con enlace)
+          mkdir -p app/src/main/res/raw
+          curl -fsSL -o app/src/main/res/raw/empezamos.mp3 "https://drive.usercontent.google.com/download?id=1sN1PphbnJSnBg19RPgFW8H4GrOaF6oXW&export=download&confirm=t"
+          if [ "$(head -c 3 app/src/main/res/raw/empezamos.mp3 | od -An -c | tr -d ' ')" != "ID3" ] && [ "$(head -c 1 app/src/main/res/raw/empezamos.mp3 | od -An -tx1 | tr -d ' ')" != "ff" ]; then echo "::error::No se pudo descargar la música de Drive"; exit 1; fi
+          ls -l app/src/main/res/raw/empezamos.mp3
           mkdir -p "$(dirname 'app/icono.b64')"
           cat > 'app/icono.b64' <<'FIN_DEL_ARCHIVO'
           iVBORw0KGgoAAAANSUhEUgAAAJAAAACQCAMAAADQmBKKAAAAwFBMVEXTq2SbaC3o15iumGmzqI7L
